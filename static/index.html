@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>THM Room Stats</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; font-family:Inter,ui-sans-serif,system-ui,sans-serif; background:#0b0d10; color:#f2f4f7; display:grid; place-items:center; padding:24px; }
+    .wrap { width:min(980px,100%); }
+    .hero { text-align:center; margin-bottom:22px; }
+    h1 { margin:0 0 8px; font-size:clamp(28px,5vw,48px); letter-spacing:-1px; }
+    .sub { color:#99a1ad; margin:0; }
+    .search { margin:24px auto; max-width:650px; display:flex; gap:10px; }
+    input { flex:1; min-width:0; border:1px solid #2a3038; background:#12161b; color:#fff; border-radius:12px; padding:15px 16px; font-size:16px; outline:none; }
+    input:focus { border-color:#5e6977; }
+    button { border:0; border-radius:12px; padding:0 22px; font-weight:700; cursor:pointer; background:#e6e8eb; color:#090b0e; }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .panel { background:#11151a; border:1px solid #252b33; border-radius:18px; padding:20px; box-shadow:0 16px 60px rgba(0,0,0,.22); }
+    .profile { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .profile strong { font-size:20px; }
+    .profile a { color:#aeb6c2; text-decoration:none; font-size:14px; }
+    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+    .card { border:1px solid #2a3038; border-radius:14px; padding:18px; background:#0d1116; }
+    .label { color:#9da5b1; font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+    .num { font-size:38px; font-weight:800; margin-top:5px; }
+    .easy .num { color:#63d39b; }
+    .medium .num { color:#e9c46a; }
+    .hard .num { color:#ef7777; }
+    .insane .num { color:#c084fc; }
+    .total { margin-top:12px; padding:18px; border-radius:14px; background:#0d1116; border:1px solid #2a3038; display:flex; justify-content:space-between; align-items:center; }
+    .total .num { font-size:30px; }
+    #status { min-height:22px; text-align:center; color:#aeb6c2; margin:13px 0; }
+    .error { color:#ff8a8a !important; }
+    .muted { color:#7d8794; font-size:13px; }
+    @media (max-width:700px) { .search { flex-direction:column; } button { height:50px; } .grid { grid-template-columns:repeat(2,1fr); } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>TryHackMe Room Stats</h1>
+      <p class="sub">Check completed rooms by difficulty. Username or profile URL.</p>
+    </section>
+
+    <form class="search" id="form">
+      <input id="username" placeholder="Username or https://tryhackme.com/p/username" autocomplete="off" required>
+      <button id="check" type="submit">Check</button>
+    </form>
+
+    <div id="status"></div>
+
+    <section class="panel" id="result" hidden>
+      <div class="profile">
+        <strong id="name"></strong>
+        <a id="profile" target="_blank" rel="noopener noreferrer">Open profile ↗</a>
+      </div>
+      <div class="grid">
+        <div class="card easy"><div class="label">Easy</div><div class="num" id="easy">0</div></div>
+        <div class="card medium"><div class="label">Medium</div><div class="num" id="medium">0</div></div>
+        <div class="card hard"><div class="label">Hard</div><div class="num" id="hard">0</div></div>
+        <div class="card insane"><div class="label">Insane</div><div class="num" id="insane">0</div></div>
+      </div>
+      <div class="total"><span>Total completed rooms</span><span class="num" id="total">0</span></div>
+      <div class="total" style="margin-top:10px"><span>Level / Rank / Points</span><span id="meta" class="muted">—</span></div>
+      <p class="muted" id="unknown" hidden></p>
+    </section>
+  </main>
+
+  <script>
+    const form = document.querySelector('#form');
+    const input = document.querySelector('#username');
+    const button = document.querySelector('#check');
+    const status = document.querySelector('#status');
+    const result = document.querySelector('#result');
+
+    function setText(id, value) { document.querySelector(id).textContent = value; }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = input.value.trim();
+      if (!username) return;
+
+      button.disabled = true;
+      status.className = '';
+      status.textContent = 'Loading…';
+      result.hidden = true;
+
+      try {
+        const res = await fetch(`/api/stats?username=${encodeURIComponent(username)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed.');
+
+        setText('#name', data.username);
+        setText('#easy', data.easy);
+        setText('#medium', data.medium);
+        setText('#hard', data.hard);
+        setText('#insane', data.insane);
+        setText('#total', data.total);
+        const meta = [];
+        if (data.level != null) meta.push(`Level ${data.level}`);
+        if (data.rank != null) meta.push(`Rank #${Number(data.rank).toLocaleString()}`);
+        if (data.total_points != null) meta.push(`${Number(data.total_points).toLocaleString()} pts`);
+        setText('#meta', meta.join(' · ') || '—');
+        const profile = document.querySelector('#profile');
+        profile.href = data.profile_url;
+
+        const unknown = document.querySelector('#unknown');
+        if (data.unknown > 0) {
+          unknown.hidden = false;
+          unknown.textContent = `${data.unknown} room(s) had an unrecognised difficulty.`;
+        } else {
+          unknown.hidden = true;
+        }
+
+        result.hidden = false;
+        if (data.reported_total !== data.breakdown_total) {
+          status.textContent = `THM reports ${data.reported_total} completed rooms; ${data.breakdown_total} were returned with difficulty data.`;
+        } else {
+          status.textContent = '';
+        }
+      } catch (err) {
+        status.className = 'error';
+        status.textContent = err.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
