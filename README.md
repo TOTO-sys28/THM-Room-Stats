@@ -3,6 +3,8 @@
 A small Flask app that accepts a TryHackMe username **or public profile URL** and displays completed rooms broken down by difficulty.
 
 `tryhackme` `ctf` `pentesting` `flask` `0day`
+# Image
+<img width="1434" height="784" alt="image" src="https://github.com/user-attachments/assets/11fc326a-a29c-4132-b7c5-5cef8a7ef715" />
 
 ## About the TryHackMe API
 
